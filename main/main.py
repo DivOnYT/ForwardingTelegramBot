@@ -1,75 +1,50 @@
-from telegram import Update
-from telegram.ext import Application, CommandHandler, CallbackContext, filters, MessageHandler
+# Importing libs
+from telethon.sync import TelegramClient, events
 
-# Replace 'YOUR_TOKEN' with your actual bot token
-YOUR_TOKEN = '6602062815:AAH0CK-fNuL00ojz8_UX9zP5f66MQ013h94' # Your App Token
+# Remplacez 'api_id', 'api_hash', 'phone_number' par vos propres valeurs
+api_id = 0  # Api hash ID in https://my.telegram.org/apps
+api_hash = ''  # Your api hash created on https://my.telegram.org/apps
+phone_number = ''  # your phone number
 
-groups = ["GROUPS IDS"] # Your groups id
+groups = [-5133725807]  # the groups to spy messages
 
-async def get_admins(chat_id, context):
-    administrators = await context.bot.get_chat_administrators(chat_id)
-
-    admin_info = []
-    for admin in administrators:
-        admin_info.append(admin.user.id)
-
-    return admin_info
-async def start(update: Update, context: CallbackContext) -> None:
-    await update.message.reply_text('Welcome to the Telegram Group Management Bot!')
-
-async def ban(update: Update, context: CallbackContext) -> None:
-    chat_id = update.message.chat_id
-    user_id = update.message.from_user.id
+forwarding_group = -5133725807  # the group to forward messages
 
 
-    if chat_id in groups and user_id in get_admins(chat_id, context):
-        if update.message.reply_to_message is not None and update.message.reply_to_message.from_user is not None:
-            banned_user_id = update.message.reply_to_message.from_user.id
-            await context.bot.ban_chat_member(chat_id, banned_user_id)
-            await update.message.reply_text('User banned from this group')
-        else:
-            await update.message.reply_text('Please reply to a user\'s message to ban them')
-    else:
-        await update.message.reply_text('You are not authorized to use this command in this group')
+def saveMessage(message: str):  # function for save message on the txt file
+    f = open("./output/output.txt", "w+", encoding="Utf-8")  # opening the file
+    f.writelines(message + "\n")  # write the lines
+    f.close()  # close the file
 
 
-async def unban(update: Update, context: CallbackContext) -> None:
-    chat_id = update.message.chat_id
-    user_id = update.message.reply_to_message.from_user.id
-    executor_id = update.message.from_user.id
+if not api_id or not api_hash or not phone_number:  # some verifications
+    print(
+        "Please provide Api_ID : int and api_hash : string and your phone number in phone_number\nThey are provided on https://my.telegram.org/apps")
 
-    if chat_id in groups and executor_id in get_admins(chat_id, context):
-        if chat_id in groups:
-            await context.bot.unban_chat_member(chat_id, user_id)
-            await update.message.reply_text(f'You have successfully unbanned {update.message.from_user.username} from the Group')
-        else:
-            await update.message.reply_text('Please reply to a user\'s message to unban them')
-    else:
-        await update.message.reply_text('You are not authorized to use this command in this group')
+else:
 
+    with TelegramClient('session_name', api_id, api_hash) as client:
+        client.connect()  # connect Client
 
-async def broadcast(update: Update, context: CallbackContext) -> None:
-    message = ' '.join(context.args)
-
-    if message.strip() != '':
-        for group in groups:
-            await context.bot.send_message(chat_id=group, text=message)
-    else:
-        await update.message.reply_text('Please provide a non-empty message for broadcasting.')
+        if not client.is_user_authorized():  # if the client isn't verified
+            client.send_code_request(phone_number)  # get code request
+            client.sign_in(phone_number, input('Enter the code: '))  # Enter received verification code
 
 
+        @client.on(events.NewMessage(chats=groups))
+        async def message_handler(event):  # event listener for messages in specific groups
+            sender = await event.get_sender()  # getting the sender of the message
+            print(f"Message received in channel/group {event.chat.title}:")
 
-def main() -> None:
-    application = Application.builder().token(YOUR_TOKEN).build()
+            message = f"[{event.chat.title}][{event.chat.id}][{event.message.date}] - [{sender.first_name} {sender.last_name}] {event.message.message}"
+            print(message)
 
-    application.add_handler(CommandHandler('start', start))
-    application.add_handler(CommandHandler('ban', ban))
-    application.add_handler(CommandHandler('unban', unban))
-    application.add_handler(CommandHandler('broadcast', broadcast))
+            saveMessage(message)  # saving message in the txt file
 
-    application.run_polling()
-    application.idle()
+            await client.send_message(forwarding_group, message)  # sending the message on the forwarding group
+
+            print(f"Message successfully send in the {forwarding_group}")
 
 
-if __name__ == '__main__':
-    main()
+        print("Waiting for new messages in the specified channels/group...")
+        client.run_until_disconnected()  # running client
