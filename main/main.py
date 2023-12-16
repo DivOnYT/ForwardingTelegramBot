@@ -12,8 +12,8 @@ forwarding_group = -5133725807  # the group to forward messages
 
 
 def saveMessage(message: str):  # function for save message on the txt file
-    f = open("./output/output.txt", "w+", encoding="Utf-8")  # opening the file
-    f.writelines(message + "\n")  # write the lines
+    f = open("./output/output.txt", "a", encoding="Utf-8")  # opening the file
+    f.write(message + "\n")  # write the lines
     f.close()  # close the file
 
 
